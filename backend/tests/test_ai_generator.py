@@ -259,8 +259,8 @@ class TestHandleToolExecution:
             assert tool_results[0]["tool_use_id"] == "tool_xyz"
             assert tool_results[0]["content"] == "Search results here"
 
-    def test_no_tools_in_second_api_call(self, mock_tool_manager):
-        """Test second API call does not include tools parameter"""
+    def test_tools_in_first_round_with_early_exit(self, mock_tool_manager):
+        """Test that tools are included in first round even if Claude returns end_turn"""
         mock_client = Mock()
 
         # Initial response with tool use
@@ -273,7 +273,7 @@ class TestHandleToolExecution:
         tool_block.input = {"query": "test"}
         initial_response.content = [tool_block]
 
-        # Final response
+        # Final response (Claude doesn't need another round)
         final_response = Mock()
         final_response.stop_reason = "end_turn"
         final_content = Mock()
@@ -292,9 +292,11 @@ class TestHandleToolExecution:
                 tool_manager=mock_tool_manager
             )
 
-            # Check second API call doesn't have tools
+            # With multi-round support, tools ARE included in first round
+            # (because we allow up to 2 rounds, and this is round 1 of 2)
             second_call_args = mock_client.messages.create.call_args_list[1]
-            assert "tools" not in second_call_args[1]
+            assert "tools" in second_call_args[1]
+            assert second_call_args[1]["tools"] == tools
 
     def test_multiple_tool_calls_in_one_response(self, mock_tool_manager):
         """Test handling multiple tool use blocks in single response"""
@@ -402,6 +404,325 @@ class TestErrorHandling:
 
             # Should still return a response (Claude handles the error message)
             assert isinstance(response, str)
+
+
+class TestMultiRoundToolCalling:
+    """Test multi-round sequential tool calling behavior"""
+
+    def test_two_round_tool_calling(self, mock_tool_manager):
+        """Test successful 2-round tool execution"""
+        mock_client = Mock()
+
+        # Round 0: Initial response with tool use (get_course_outline)
+        round0_response = Mock()
+        round0_response.stop_reason = "tool_use"
+        tool_block_0 = Mock()
+        tool_block_0.type = "tool_use"
+        tool_block_0.id = "tool_round0"
+        tool_block_0.name = "get_course_outline"
+        tool_block_0.input = {"course_name": "Course X"}
+        round0_response.content = [tool_block_0]
+
+        # Round 1: Response with another tool use (search_course_content)
+        round1_response = Mock()
+        round1_response.stop_reason = "tool_use"
+        tool_block_1 = Mock()
+        tool_block_1.type = "tool_use"
+        tool_block_1.id = "tool_round1"
+        tool_block_1.name = "search_course_content"
+        tool_block_1.input = {"query": "Neural Networks"}
+        round1_response.content = [tool_block_1]
+
+        # Final response: Text answer
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Lesson 4 covers Neural Networks. Similar courses: ..."
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [
+            round0_response,
+            round1_response,
+            final_response
+        ]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="What does lesson 4 of Course X cover?",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Verify 3 API calls made (initial + 2 rounds)
+            assert mock_client.messages.create.call_count == 3
+
+            # Verify 2 tool executions
+            assert mock_tool_manager.execute_tool.call_count == 2
+
+            # Verify final response returned
+            assert "Neural Networks" in response
+
+            # Verify message structure in final call
+            final_call_args = mock_client.messages.create.call_args_list[2]
+            messages = final_call_args[1]["messages"]
+
+            # Should have: user, assistant, user (results), assistant, user (results)
+            assert len(messages) == 5
+            assert messages[0]["role"] == "user"
+            assert messages[1]["role"] == "assistant"
+            assert messages[2]["role"] == "user"
+            assert messages[3]["role"] == "assistant"
+            assert messages[4]["role"] == "user"
+
+    def test_early_termination_after_one_round(self, mock_tool_manager):
+        """Test that execution stops if Claude doesn't request more tools"""
+        mock_client = Mock()
+
+        # Round 0: Tool use
+        round0_response = Mock()
+        round0_response.stop_reason = "tool_use"
+        tool_block = Mock()
+        tool_block.type = "tool_use"
+        tool_block.id = "tool_1"
+        tool_block.name = "search_course_content"
+        tool_block.input = {"query": "ML"}
+        round0_response.content = [tool_block]
+
+        # Round 1: Final response (no more tool use)
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Machine learning is..."
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [round0_response, final_response]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="What is ML?",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Should only make 2 API calls (not 3)
+            assert mock_client.messages.create.call_count == 2
+            assert mock_tool_manager.execute_tool.call_count == 1
+            assert "Machine learning" in response
+
+    def test_max_rounds_enforcement(self, mock_tool_manager):
+        """Test that execution stops after max_rounds even if tool_use continues"""
+        mock_client = Mock()
+
+        # All responses request tool use
+        def create_tool_response(tool_id):
+            response = Mock()
+            response.stop_reason = "tool_use"
+            tool_block = Mock()
+            tool_block.type = "tool_use"
+            tool_block.id = tool_id
+            tool_block.name = "search_course_content"
+            tool_block.input = {"query": f"test_{tool_id}"}
+            response.content = [tool_block]
+            return response
+
+        # Final forced response
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Based on available information..."
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [
+            create_tool_response("tool_1"),
+            create_tool_response("tool_2"),
+            create_tool_response("tool_3"),  # This triggers max rounds
+            final_response  # Forced final call
+        ]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="Complex query",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Should make 4 API calls: initial + round1 + round2 + forced final
+            assert mock_client.messages.create.call_count == 4
+
+            # Should execute 3 tools (including the one from forced final)
+            assert mock_tool_manager.execute_tool.call_count == 3
+
+            # Final call should NOT have tools parameter
+            final_call_args = mock_client.messages.create.call_args_list[3]
+            assert "tools" not in final_call_args[1]
+
+    def test_tools_included_in_intermediate_rounds(self, mock_tool_manager):
+        """Test that tools parameter is included in intermediate API calls"""
+        mock_client = Mock()
+
+        # Round 0: Tool use
+        round0_response = Mock()
+        round0_response.stop_reason = "tool_use"
+        tool_block_0 = Mock()
+        tool_block_0.type = "tool_use"
+        tool_block_0.id = "tool_1"
+        tool_block_0.name = "get_course_outline"
+        tool_block_0.input = {"course_name": "Test"}
+        round0_response.content = [tool_block_0]
+
+        # Round 1: Tool use
+        round1_response = Mock()
+        round1_response.stop_reason = "tool_use"
+        tool_block_1 = Mock()
+        tool_block_1.type = "tool_use"
+        tool_block_1.id = "tool_2"
+        tool_block_1.name = "search_course_content"
+        tool_block_1.input = {"query": "Test"}
+        round1_response.content = [tool_block_1]
+
+        # Final response
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Answer"
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [
+            round0_response,
+            round1_response,
+            final_response
+        ]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="Test query",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Check round 1 API call has tools
+            round1_call_args = mock_client.messages.create.call_args_list[1]
+            assert "tools" in round1_call_args[1]
+            assert round1_call_args[1]["tools"] == tools
+
+            # Check final call does NOT have tools (is_final_round=True for round 2)
+            final_call_args = mock_client.messages.create.call_args_list[2]
+            assert "tools" not in final_call_args[1]
+
+    def test_empty_results_allow_retry(self, mock_tool_manager):
+        """Test that empty results in round 1 allow Claude to try again in round 2"""
+        mock_client = Mock()
+
+        # Mock tool manager returns empty for first call, results for second
+        mock_tool_manager.execute_tool.side_effect = [
+            "No relevant content found in course 'Wrong Course'.",
+            "Found relevant content: Machine learning basics..."
+        ]
+
+        # Round 0: First search
+        round0_response = Mock()
+        round0_response.stop_reason = "tool_use"
+        tool_block_0 = Mock()
+        tool_block_0.type = "tool_use"
+        tool_block_0.id = "tool_1"
+        tool_block_0.name = "search_course_content"
+        tool_block_0.input = {"query": "ML", "course_name": "Wrong Course"}
+        round0_response.content = [tool_block_0]
+
+        # Round 1: Second search (different parameters)
+        round1_response = Mock()
+        round1_response.stop_reason = "tool_use"
+        tool_block_1 = Mock()
+        tool_block_1.type = "tool_use"
+        tool_block_1.id = "tool_2"
+        tool_block_1.name = "search_course_content"
+        tool_block_1.input = {"query": "ML", "course_name": "Right Course"}
+        round1_response.content = [tool_block_1]
+
+        # Final response
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Machine learning is..."
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [
+            round0_response,
+            round1_response,
+            final_response
+        ]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="What is ML?",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Should try both searches
+            assert mock_tool_manager.execute_tool.call_count == 2
+            assert "Machine learning" in response
+
+    def test_single_round_backward_compatibility(self, mock_tool_manager):
+        """Test that single-round queries still work as before"""
+        mock_client = Mock()
+
+        # Initial response with tool use
+        initial_response = Mock()
+        initial_response.stop_reason = "tool_use"
+        tool_block = Mock()
+        tool_block.type = "tool_use"
+        tool_block.id = "tool_1"
+        tool_block.name = "search_course_content"
+        tool_block.input = {"query": "Python basics"}
+        initial_response.content = [tool_block]
+
+        # Final response after tool execution
+        final_response = Mock()
+        final_response.stop_reason = "end_turn"
+        final_content = Mock()
+        final_content.text = "Python is a programming language..."
+        final_response.content = [final_content]
+
+        mock_client.messages.create.side_effect = [initial_response, final_response]
+
+        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(api_key="test_key", model="claude-sonnet-4-20250514")
+
+            tools = mock_tool_manager.get_tool_definitions()
+            response = generator.generate_response(
+                query="What is Python?",
+                tools=tools,
+                tool_manager=mock_tool_manager,
+                max_tool_rounds=2
+            )
+
+            # Should make exactly 2 API calls (same as before multi-round)
+            assert mock_client.messages.create.call_count == 2
+            # Should execute 1 tool
+            assert mock_tool_manager.execute_tool.call_count == 1
+            # Should return text response
+            assert "Python" in response
 
 
 if __name__ == "__main__":
