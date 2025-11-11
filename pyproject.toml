@@ -17,4 +17,35 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
+    "httpx>=0.28.1",
 ]
+
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["backend/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Output options
+addopts = [
+    "-v",                    # Verbose output
+    "--strict-markers",      # Strict marker checking
+    "--tb=short",           # Shorter traceback format
+    "--disable-warnings",   # Disable warnings for cleaner output
+    "-ra",                  # Show summary of all test outcomes
+]
+
+# Markers for categorizing tests
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests for component interactions",
+    "api: API endpoint tests",
+    "slow: Tests that take longer to run",
+]
+
+# Coverage options (if using pytest-cov)
+# Uncomment when pytest-cov is installed
+# [tool.coverage.run]
+# source = ["backend"]
+# omit = ["backend/tests/*", "backend/test_*.py"]
