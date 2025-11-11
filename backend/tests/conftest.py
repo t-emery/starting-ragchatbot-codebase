@@ -15,6 +15,33 @@ from models import Course, CourseChunk, Lesson
 from vector_store import SearchResults
 
 # ============================================================================
+# FastAPI Testing Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_client():
+    """Create FastAPI test client
+
+    Note: Import test_api_endpoints.create_test_app to use this fixture
+    for API endpoint testing
+    """
+    from fastapi.testclient import TestClient
+    from test_api_endpoints import create_test_app
+
+    app = create_test_app()
+    return TestClient(app)
+
+
+@pytest.fixture
+def mock_fastapi_request():
+    """Mock FastAPI request object"""
+    mock_request = Mock()
+    mock_request.query = "What is machine learning?"
+    mock_request.session_id = None
+    return mock_request
+
+
+# ============================================================================
 # Sample Test Data
 # ============================================================================
 
@@ -263,3 +290,86 @@ def mock_session_manager():
     )
     mock_manager.add_exchange.return_value = None
     return mock_manager
+
+
+# ============================================================================
+# Configuration Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_config():
+    """Test configuration object with common test settings"""
+    config = Mock()
+    config.ANTHROPIC_API_KEY = "test_api_key"
+    config.ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+    config.EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    config.CHUNK_SIZE = 800
+    config.CHUNK_OVERLAP = 100
+    config.MAX_RESULTS = 5
+    config.MAX_HISTORY = 2
+    config.CHROMA_PATH = "./test_chroma_db"
+    return config
+
+
+# ============================================================================
+# API Response Fixtures
+# ============================================================================
+
+@pytest.fixture
+def sample_query_response():
+    """Sample API query response"""
+    return {
+        "answer": "Machine learning is a subset of artificial intelligence.",
+        "sources": [
+            {
+                "course_title": "Introduction to Machine Learning",
+                "lesson_number": 1,
+                "lesson_link": "https://example.com/ml-course/lesson-1"
+            }
+        ],
+        "session_id": "test_session_123"
+    }
+
+
+@pytest.fixture
+def sample_courses_response():
+    """Sample API courses response"""
+    return {
+        "total_courses": 3,
+        "course_titles": [
+            "Introduction to Machine Learning",
+            "Advanced Python Programming",
+            "Data Structures and Algorithms"
+        ]
+    }
+
+
+# ============================================================================
+# RAG System Mock Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mock_rag_system_full():
+    """Fully configured mock RAG system for API testing"""
+    mock_system = Mock()
+
+    # Mock session manager
+    mock_session_mgr = Mock()
+    mock_session_mgr.create_session.return_value = "test_session_123"
+    mock_session_mgr.get_conversation_history.return_value = None
+    mock_session_mgr.add_exchange.return_value = None
+    mock_system.session_manager = mock_session_mgr
+
+    # Mock query method
+    mock_system.query.return_value = (
+        "Machine learning is a subset of AI.",
+        [{"course_title": "ML Course", "lesson_number": 1, "lesson_link": "https://example.com/lesson-1"}]
+    )
+
+    # Mock analytics method
+    mock_system.get_course_analytics.return_value = {
+        "total_courses": 3,
+        "course_titles": ["Course 1", "Course 2", "Course 3"]
+    }
+
+    return mock_system
