@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,8 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
     newChatButton = document.getElementById('newChatButton');
-    
+    themeToggle = document.getElementById('themeToggle');
+
     setupEventListeners();
+    initializeTheme();
     createNewSession();
     loadCourseStats();
 });
@@ -32,6 +34,17 @@ function setupEventListeners() {
 
     // New chat button
     newChatButton.addEventListener('click', createNewSession);
+
+    // Theme toggle
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // Keyboard accessibility for theme toggle
+    themeToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleTheme();
+        }
+    });
 
     // Suggested questions
     document.querySelectorAll('.suggested-item').forEach(button => {
@@ -223,4 +236,37 @@ function setupCourseTitleClickHandlers() {
             sendMessage();
         });
     });
+}
+
+// Theme Management
+function initializeTheme() {
+    // Check localStorage for saved theme preference
+    const savedTheme = localStorage.getItem('theme');
+
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+        // Check user's system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const defaultTheme = prefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', defaultTheme);
+        localStorage.setItem('theme', defaultTheme);
+    }
+
+    updateThemeAriaLabel();
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeAriaLabel();
+}
+
+function updateThemeAriaLabel() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const label = currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    themeToggle.setAttribute('aria-label', label);
 }
