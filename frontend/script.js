@@ -74,10 +74,15 @@ async function sendMessage() {
             })
         });
 
-        if (!response.ok) throw new Error('Query failed');
-
+        // Parse response to get data or error details
         const data = await response.json();
-        
+
+        // Check for error and use actual error message from API
+        if (!response.ok) {
+            const errorMessage = data.detail || data.message || 'Query failed';
+            throw new Error(errorMessage);
+        }
+
         // Update session ID if new
         if (!currentSessionId) {
             currentSessionId = data.session_id;
@@ -185,8 +190,11 @@ async function loadCourseStats() {
         if (courseTitles) {
             if (data.course_titles && data.course_titles.length > 0) {
                 courseTitles.innerHTML = data.course_titles
-                    .map(title => `<div class="course-title-item">${title}</div>`)
+                    .map(title => `<button class="course-title-item" data-course-name="${title}">${title}</button>`)
                     .join('');
+
+                // Add click handlers to course title buttons
+                setupCourseTitleClickHandlers();
             } else {
                 courseTitles.innerHTML = '<span class="no-courses">No courses available</span>';
             }
@@ -202,4 +210,17 @@ async function loadCourseStats() {
             courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
         }
     }
+}
+
+// Setup click handlers for course title buttons
+function setupCourseTitleClickHandlers() {
+    const courseButtons = document.querySelectorAll('.course-title-item');
+    courseButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const courseName = button.getAttribute('data-course-name');
+            const query = `What lessons are in the ${courseName} course?`;
+            chatInput.value = query;
+            sendMessage();
+        });
+    });
 }
