@@ -1,16 +1,17 @@
 """Tests for VectorStore search functionality and database state"""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
-from vector_store import VectorStore, SearchResults
-from models import Course, Lesson, CourseChunk
+from models import Course, CourseChunk, Lesson
+from vector_store import SearchResults, VectorStore
 
 
 class TestSearchResults:
@@ -19,9 +20,14 @@ class TestSearchResults:
     def test_from_chroma_with_results(self):
         """Test creating SearchResults from ChromaDB results"""
         chroma_results = {
-            'documents': [['doc1', 'doc2']],
-            'metadatas': [[{'course_title': 'Test', 'lesson_number': 1}, {'course_title': 'Test', 'lesson_number': 2}]],
-            'distances': [[0.1, 0.2]]
+            "documents": [["doc1", "doc2"]],
+            "metadatas": [
+                [
+                    {"course_title": "Test", "lesson_number": 1},
+                    {"course_title": "Test", "lesson_number": 2},
+                ]
+            ],
+            "distances": [[0.1, 0.2]],
         }
 
         results = SearchResults.from_chroma(chroma_results)
@@ -34,11 +40,7 @@ class TestSearchResults:
 
     def test_from_chroma_empty_results(self):
         """Test creating SearchResults from empty ChromaDB results"""
-        chroma_results = {
-            'documents': [[]],
-            'metadatas': [[]],
-            'distances': [[]]
-        }
+        chroma_results = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
         results = SearchResults.from_chroma(chroma_results)
 
@@ -58,7 +60,7 @@ class TestSearchResults:
 class TestVectorStoreSearch:
     """Test VectorStore search functionality"""
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_without_filters(self, mock_client_class):
         """Test basic search without course or lesson filters"""
         # Setup mock
@@ -67,14 +69,16 @@ class TestVectorStoreSearch:
 
         mock_collection = MagicMock()
         mock_collection.query.return_value = {
-            'documents': [['Machine learning content']],
-            'metadatas': [[{'course_title': 'ML Course', 'lesson_number': 1}]],
-            'distances': [[0.1]]
+            "documents": [["Machine learning content"]],
+            "metadatas": [[{"course_title": "ML Course", "lesson_number": 1}]],
+            "distances": [[0.1]],
         }
         mock_client.get_or_create_collection.return_value = mock_collection
 
         # Create VectorStore
-        store = VectorStore(chroma_path="./test_db", embedding_model="all-MiniLM-L6-v2", max_results=5)
+        store = VectorStore(
+            chroma_path="./test_db", embedding_model="all-MiniLM-L6-v2", max_results=5
+        )
 
         # Execute search
         results = store.search(query="What is machine learning?")
@@ -82,10 +86,10 @@ class TestVectorStoreSearch:
         # Verify
         assert not results.is_empty()
         assert len(results.documents) == 1
-        assert 'Machine learning content' in results.documents[0]
+        assert "Machine learning content" in results.documents[0]
         mock_collection.query.assert_called_once()
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_with_course_filter(self, mock_client_class):
         """Test search with course name filter"""
         # Setup mock
@@ -94,15 +98,15 @@ class TestVectorStoreSearch:
 
         mock_catalog = MagicMock()
         mock_catalog.query.return_value = {
-            'documents': [['ML Course']],
-            'metadatas': [[{'title': 'Machine Learning Course'}]]
+            "documents": [["ML Course"]],
+            "metadatas": [[{"title": "Machine Learning Course"}]],
         }
 
         mock_content = MagicMock()
         mock_content.query.return_value = {
-            'documents': [['Course content']],
-            'metadatas': [[{'course_title': 'Machine Learning Course', 'lesson_number': 1}]],
-            'distances': [[0.1]]
+            "documents": [["Course content"]],
+            "metadatas": [[{"course_title": "Machine Learning Course", "lesson_number": 1}]],
+            "distances": [[0.1]],
         }
 
         # Return catalog first, then content
@@ -119,9 +123,9 @@ class TestVectorStoreSearch:
         # Verify content search was called with filter
         mock_content.query.assert_called_once()
         call_args = mock_content.query.call_args
-        assert call_args[1]['where'] == {'course_title': 'Machine Learning Course'}
+        assert call_args[1]["where"] == {"course_title": "Machine Learning Course"}
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_with_invalid_course(self, mock_client_class):
         """Test search with non-existent course name"""
         # Setup mock
@@ -129,10 +133,7 @@ class TestVectorStoreSearch:
         mock_client_class.return_value = mock_client
 
         mock_catalog = MagicMock()
-        mock_catalog.query.return_value = {
-            'documents': [[]],
-            'metadatas': [[]]
-        }
+        mock_catalog.query.return_value = {"documents": [[]], "metadatas": [[]]}
 
         mock_content = MagicMock()
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -148,7 +149,7 @@ class TestVectorStoreSearch:
         assert results.error is not None
         assert "No course found matching" in results.error
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_with_lesson_filter(self, mock_client_class):
         """Test search with lesson number filter"""
         # Setup mock
@@ -158,9 +159,9 @@ class TestVectorStoreSearch:
         mock_catalog = MagicMock()
         mock_content = MagicMock()
         mock_content.query.return_value = {
-            'documents': [['Lesson 1 content']],
-            'metadatas': [[{'course_title': 'Test Course', 'lesson_number': 1}]],
-            'distances': [[0.1]]
+            "documents": [["Lesson 1 content"]],
+            "metadatas": [[{"course_title": "Test Course", "lesson_number": 1}]],
+            "distances": [[0.1]],
         }
 
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -173,9 +174,9 @@ class TestVectorStoreSearch:
 
         # Verify filter was applied
         call_args = mock_content.query.call_args
-        assert call_args[1]['where'] == {'lesson_number': 1}
+        assert call_args[1]["where"] == {"lesson_number": 1}
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_with_both_filters(self, mock_client_class):
         """Test search with both course and lesson filters"""
         # Setup mock
@@ -184,15 +185,15 @@ class TestVectorStoreSearch:
 
         mock_catalog = MagicMock()
         mock_catalog.query.return_value = {
-            'documents': [['ML Course']],
-            'metadatas': [[{'title': 'ML Course'}]]
+            "documents": [["ML Course"]],
+            "metadatas": [[{"title": "ML Course"}]],
         }
 
         mock_content = MagicMock()
         mock_content.query.return_value = {
-            'documents': [['Content']],
-            'metadatas': [[{'course_title': 'ML Course', 'lesson_number': 2}]],
-            'distances': [[0.1]]
+            "documents": [["Content"]],
+            "metadatas": [[{"course_title": "ML Course", "lesson_number": 2}]],
+            "distances": [[0.1]],
         }
 
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -205,9 +206,9 @@ class TestVectorStoreSearch:
 
         # Verify combined filter
         call_args = mock_content.query.call_args
-        assert '$and' in call_args[1]['where']
+        assert "$and" in call_args[1]["where"]
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_search_with_exception(self, mock_client_class):
         """Test search handles ChromaDB exceptions"""
         # Setup mock
@@ -235,7 +236,7 @@ class TestVectorStoreSearch:
 class TestVectorStoreDatabaseState:
     """Test VectorStore database state and initialization"""
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_get_course_count_with_data(self, mock_client_class):
         """Test getting course count when courses exist"""
         # Setup mock
@@ -243,9 +244,7 @@ class TestVectorStoreDatabaseState:
         mock_client_class.return_value = mock_client
 
         mock_catalog = MagicMock()
-        mock_catalog.get.return_value = {
-            'ids': ['Course1', 'Course2', 'Course3']
-        }
+        mock_catalog.get.return_value = {"ids": ["Course1", "Course2", "Course3"]}
 
         mock_content = MagicMock()
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -258,7 +257,7 @@ class TestVectorStoreDatabaseState:
 
         assert count == 3
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_get_course_count_empty(self, mock_client_class):
         """Test getting course count when no courses exist"""
         # Setup mock
@@ -266,9 +265,7 @@ class TestVectorStoreDatabaseState:
         mock_client_class.return_value = mock_client
 
         mock_catalog = MagicMock()
-        mock_catalog.get.return_value = {
-            'ids': []
-        }
+        mock_catalog.get.return_value = {"ids": []}
 
         mock_content = MagicMock()
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -281,7 +278,7 @@ class TestVectorStoreDatabaseState:
 
         assert count == 0
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_get_existing_course_titles(self, mock_client_class):
         """Test retrieving all course titles"""
         # Setup mock
@@ -289,9 +286,7 @@ class TestVectorStoreDatabaseState:
         mock_client_class.return_value = mock_client
 
         mock_catalog = MagicMock()
-        mock_catalog.get.return_value = {
-            'ids': ['ML Course', 'Python Course']
-        }
+        mock_catalog.get.return_value = {"ids": ["ML Course", "Python Course"]}
 
         mock_content = MagicMock()
         mock_client.get_or_create_collection.side_effect = [mock_catalog, mock_content]
@@ -303,14 +298,14 @@ class TestVectorStoreDatabaseState:
         titles = store.get_existing_course_titles()
 
         assert len(titles) == 2
-        assert 'ML Course' in titles
-        assert 'Python Course' in titles
+        assert "ML Course" in titles
+        assert "Python Course" in titles
 
 
 class TestBuildFilter:
     """Test filter building logic"""
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_no_filters(self, mock_client_class):
         """Test filter when no parameters provided"""
         mock_client = MagicMock()
@@ -322,7 +317,7 @@ class TestBuildFilter:
         filter_dict = store._build_filter(None, None)
         assert filter_dict is None
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_course_filter_only(self, mock_client_class):
         """Test filter with only course title"""
         mock_client = MagicMock()
@@ -334,7 +329,7 @@ class TestBuildFilter:
         filter_dict = store._build_filter("Test Course", None)
         assert filter_dict == {"course_title": "Test Course"}
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_lesson_filter_only(self, mock_client_class):
         """Test filter with only lesson number"""
         mock_client = MagicMock()
@@ -346,7 +341,7 @@ class TestBuildFilter:
         filter_dict = store._build_filter(None, 5)
         assert filter_dict == {"lesson_number": 5}
 
-    @patch('vector_store.chromadb.PersistentClient')
+    @patch("vector_store.chromadb.PersistentClient")
     def test_both_filters(self, mock_client_class):
         """Test filter with both course and lesson"""
         mock_client = MagicMock()

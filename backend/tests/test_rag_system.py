@@ -1,9 +1,10 @@
 """Tests for RAG System end-to-end integration"""
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent
@@ -30,12 +31,14 @@ def mock_config():
 @pytest.fixture
 def mock_rag_system(mock_config):
     """Create RAGSystem with mocked components"""
-    with patch('rag_system.DocumentProcessor'), \
-         patch('rag_system.VectorStore'), \
-         patch('rag_system.AIGenerator'), \
-         patch('rag_system.SessionManager'), \
-         patch('rag_system.CourseSearchTool'), \
-         patch('rag_system.CourseOutlineTool'):
+    with (
+        patch("rag_system.DocumentProcessor"),
+        patch("rag_system.VectorStore"),
+        patch("rag_system.AIGenerator"),
+        patch("rag_system.SessionManager"),
+        patch("rag_system.CourseSearchTool"),
+        patch("rag_system.CourseOutlineTool"),
+    ):
         system = RAGSystem(mock_config)
         return system
 
@@ -45,12 +48,14 @@ class TestRAGSystemInitialization:
 
     def test_initialization_creates_all_components(self, mock_config):
         """Test that RAGSystem initializes all required components"""
-        with patch('rag_system.DocumentProcessor') as mock_doc_proc, \
-             patch('rag_system.VectorStore') as mock_vector_store, \
-             patch('rag_system.AIGenerator') as mock_ai_gen, \
-             patch('rag_system.SessionManager') as mock_session_mgr, \
-             patch('rag_system.CourseSearchTool'), \
-             patch('rag_system.CourseOutlineTool'):
+        with (
+            patch("rag_system.DocumentProcessor") as mock_doc_proc,
+            patch("rag_system.VectorStore") as mock_vector_store,
+            patch("rag_system.AIGenerator") as mock_ai_gen,
+            patch("rag_system.SessionManager") as mock_session_mgr,
+            patch("rag_system.CourseSearchTool"),
+            patch("rag_system.CourseOutlineTool"),
+        ):
 
             system = RAGSystem(mock_config)
 
@@ -61,18 +66,18 @@ class TestRAGSystemInitialization:
             mock_session_mgr.assert_called_once()
 
             # Verify components exist
-            assert hasattr(system, 'document_processor')
-            assert hasattr(system, 'vector_store')
-            assert hasattr(system, 'ai_generator')
-            assert hasattr(system, 'session_manager')
-            assert hasattr(system, 'tool_manager')
+            assert hasattr(system, "document_processor")
+            assert hasattr(system, "vector_store")
+            assert hasattr(system, "ai_generator")
+            assert hasattr(system, "session_manager")
+            assert hasattr(system, "tool_manager")
 
     def test_tools_registered(self, mock_rag_system):
         """Test that search tools are registered"""
         # Verify tool manager has registered tools
-        assert hasattr(mock_rag_system, 'tool_manager')
-        assert hasattr(mock_rag_system, 'search_tool')
-        assert hasattr(mock_rag_system, 'outline_tool')
+        assert hasattr(mock_rag_system, "tool_manager")
+        assert hasattr(mock_rag_system, "search_tool")
+        assert hasattr(mock_rag_system, "outline_tool")
 
 
 class TestRAGSystemQuery:
@@ -119,9 +124,7 @@ class TestRAGSystemQuery:
     def test_query_passes_tools_to_ai(self, mock_rag_system):
         """Test query passes tool definitions to AI generator"""
         # Mock tool definitions
-        mock_tools = [
-            {"name": "search_course_content", "description": "Search courses"}
-        ]
+        mock_tools = [{"name": "search_course_content", "description": "Search courses"}]
         mock_rag_system.tool_manager.get_tool_definitions = Mock(return_value=mock_tools)
         mock_rag_system.ai_generator.generate_response = Mock(return_value="Answer")
         mock_rag_system.tool_manager.get_last_sources = Mock(return_value=[])
@@ -132,14 +135,18 @@ class TestRAGSystemQuery:
 
         # Verify tools were passed
         call_args = mock_rag_system.ai_generator.generate_response.call_args
-        assert call_args[1]['tools'] == mock_tools
-        assert call_args[1]['tool_manager'] == mock_rag_system.tool_manager
+        assert call_args[1]["tools"] == mock_tools
+        assert call_args[1]["tool_manager"] == mock_rag_system.tool_manager
 
     def test_query_returns_sources(self, mock_rag_system):
         """Test query returns sources from tool searches"""
         # Mock sources
         expected_sources = [
-            {"course_title": "ML Course", "lesson_number": 1, "lesson_link": "https://example.com/lesson-1"}
+            {
+                "course_title": "ML Course",
+                "lesson_number": 1,
+                "lesson_link": "https://example.com/lesson-1",
+            }
         ]
         mock_rag_system.ai_generator.generate_response = Mock(return_value="Answer")
         mock_rag_system.tool_manager.get_last_sources = Mock(return_value=expected_sources)
@@ -244,9 +251,9 @@ class TestRAGSystemIntegration:
     def test_full_query_flow_with_tool_execution(self, mock_rag_system):
         """Test complete query flow including tool execution"""
         # Setup: Mock tool execution scenario
-        mock_rag_system.tool_manager.get_tool_definitions = Mock(return_value=[
-            {"name": "search_course_content"}
-        ])
+        mock_rag_system.tool_manager.get_tool_definitions = Mock(
+            return_value=[{"name": "search_course_content"}]
+        )
 
         # Simulate AI deciding to use tool and getting results
         mock_rag_system.ai_generator.generate_response = Mock(
@@ -257,7 +264,7 @@ class TestRAGSystemIntegration:
             {
                 "course_title": "Introduction to ML",
                 "lesson_number": 1,
-                "lesson_link": "https://example.com/ml/lesson-1"
+                "lesson_link": "https://example.com/ml/lesson-1",
             }
         ]
         mock_rag_system.tool_manager.get_last_sources = Mock(return_value=mock_sources)
@@ -310,7 +317,7 @@ class TestRAGSystemIntegration:
         mock_rag_system.ai_generator.generate_response = Mock(
             side_effect=[
                 "ML is machine learning.",
-                "It's used for pattern recognition and predictions."
+                "It's used for pattern recognition and predictions.",
             ]
         )
         mock_rag_system.tool_manager.get_last_sources = Mock(return_value=[])
@@ -333,9 +340,7 @@ class TestErrorScenarios:
     def test_query_with_ai_error(self, mock_rag_system):
         """Test query handles AI generation error"""
         # Mock AI error
-        mock_rag_system.ai_generator.generate_response = Mock(
-            side_effect=Exception("API Error")
-        )
+        mock_rag_system.ai_generator.generate_response = Mock(side_effect=Exception("API Error"))
 
         # Execute query - should raise exception
         with pytest.raises(Exception) as exc_info:

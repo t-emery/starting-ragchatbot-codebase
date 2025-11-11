@@ -9,10 +9,11 @@ These tests check the REAL system state (not mocked) to diagnose issues:
 Run these tests to identify the root cause of "query failed" errors.
 """
 
-import pytest
-import sys
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent
@@ -20,8 +21,8 @@ sys.path.insert(0, str(backend_path))
 
 # Import after adding to path
 from config import config
-from vector_store import VectorStore
 from rag_system import RAGSystem
+from vector_store import VectorStore
 
 
 class TestSystemConfiguration:
@@ -40,11 +41,11 @@ class TestSystemConfiguration:
 
     def test_config_values_loaded(self):
         """Test that all required config values are loaded"""
-        assert hasattr(config, 'ANTHROPIC_MODEL'), "ANTHROPIC_MODEL not in config"
-        assert hasattr(config, 'EMBEDDING_MODEL'), "EMBEDDING_MODEL not in config"
-        assert hasattr(config, 'CHUNK_SIZE'), "CHUNK_SIZE not in config"
-        assert hasattr(config, 'MAX_RESULTS'), "MAX_RESULTS not in config"
-        assert hasattr(config, 'CHROMA_PATH'), "CHROMA_PATH not in config"
+        assert hasattr(config, "ANTHROPIC_MODEL"), "ANTHROPIC_MODEL not in config"
+        assert hasattr(config, "EMBEDDING_MODEL"), "EMBEDDING_MODEL not in config"
+        assert hasattr(config, "CHUNK_SIZE"), "CHUNK_SIZE not in config"
+        assert hasattr(config, "MAX_RESULTS"), "MAX_RESULTS not in config"
+        assert hasattr(config, "CHROMA_PATH"), "CHROMA_PATH not in config"
 
         print(f"✓ Configuration loaded:")
         print(f"  - Model: {config.ANTHROPIC_MODEL}")
@@ -72,7 +73,7 @@ class TestDatabaseState:
         return VectorStore(
             chroma_path=chroma_path,
             embedding_model=config.EMBEDDING_MODEL,
-            max_results=config.MAX_RESULTS
+            max_results=config.MAX_RESULTS,
         )
 
     def test_database_has_courses(self, vector_store):
@@ -93,7 +94,7 @@ class TestDatabaseState:
             # Try to get some content
             results = vector_store.course_content.get(limit=1)
 
-            if results and 'ids' in results and len(results['ids']) > 0:
+            if results and "ids" in results and len(results["ids"]) > 0:
                 print(f"✓ Database has content chunks")
             else:
                 print("✗ Database has NO content chunks")
@@ -142,7 +143,7 @@ class TestDocumentLoading:
         possible_paths = [
             Path(backend_path).parent / "docs",
             Path(backend_path) / "docs",
-            Path(backend_path) / "../docs"
+            Path(backend_path) / "../docs",
         ]
 
         found = False
@@ -152,7 +153,7 @@ class TestDocumentLoading:
                 files = list(path.glob("*"))
                 print(f"  Files in docs: {len(files)}")
                 for f in files:
-                    if f.suffix.lower() in ['.txt', '.pdf', '.docx']:
+                    if f.suffix.lower() in [".txt", ".pdf", ".docx"]:
                         print(f"    - {f.name}")
                 found = True
                 break
@@ -256,9 +257,9 @@ class TestDiagnosticSummary:
             issues.append(f"RAG system initialization failed: {e}")
 
         # Print summary
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("DIAGNOSTIC SUMMARY")
-        print("="*60)
+        print("=" * 60)
 
         if issues:
             print("\n🔴 CRITICAL ISSUES FOUND:")
@@ -273,7 +274,7 @@ class TestDiagnosticSummary:
         if not issues and not warnings:
             print("\n✅ All checks passed!")
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
 
         # Fail test if critical issues found
         if issues:

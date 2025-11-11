@@ -1,8 +1,9 @@
 """Test the actual live system to diagnose 'query failed' issue"""
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent
@@ -22,9 +23,9 @@ class TestLiveSystem:
 
     def test_simple_greeting(self, live_system):
         """Test simple non-content query"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Simple greeting query")
-        print("="*60)
+        print("=" * 60)
 
         try:
             response, sources = live_system.query("Hello")
@@ -41,14 +42,15 @@ class TestLiveSystem:
             print(f"✗ Query FAILED with exception: {e}")
             print(f"Exception type: {type(e).__name__}")
             import traceback
+
             traceback.print_exc()
             pytest.fail(f"Query failed: {e}")
 
     def test_content_query_about_mcp(self, live_system):
         """Test content query that should use search tool"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Content query about MCP")
-        print("="*60)
+        print("=" * 60)
 
         try:
             response, sources = live_system.query("What is MCP?")
@@ -71,14 +73,15 @@ class TestLiveSystem:
             print(f"✗ Query FAILED with exception: {e}")
             print(f"Exception type: {type(e).__name__}")
             import traceback
+
             traceback.print_exc()
             pytest.fail(f"Content query failed: {e}")
 
     def test_content_query_about_chroma(self, live_system):
         """Test content query about Chroma"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Content query about Chroma")
-        print("="*60)
+        print("=" * 60)
 
         try:
             response, sources = live_system.query("What is Chroma used for?")
@@ -101,14 +104,15 @@ class TestLiveSystem:
             print(f"✗ Query FAILED with exception: {e}")
             print(f"Exception type: {type(e).__name__}")
             import traceback
+
             traceback.print_exc()
             pytest.fail(f"Content query failed: {e}")
 
     def test_query_with_course_filter(self, live_system):
         """Test query about specific course"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Query about specific lessons in MCP course")
-        print("="*60)
+        print("=" * 60)
 
         try:
             response, sources = live_system.query("What topics are covered in the MCP course?")
@@ -131,6 +135,7 @@ class TestLiveSystem:
             print(f"✗ Query FAILED with exception: {e}")
             print(f"Exception type: {type(e).__name__}")
             import traceback
+
             traceback.print_exc()
             pytest.fail(f"Query with course context failed: {e}")
 

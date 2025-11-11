@@ -1,15 +1,16 @@
 """Tests for CourseSearchTool.execute() method"""
 
-import pytest
-from unittest.mock import Mock, MagicMock
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 # Add backend to path
 backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
-from search_tools import CourseSearchTool, CourseOutlineTool, ToolManager
+from search_tools import CourseOutlineTool, CourseSearchTool, ToolManager
 from vector_store import SearchResults
 
 
@@ -30,9 +31,7 @@ class TestCourseSearchToolExecute:
         assert len(result) > 0
         assert "Machine learning" in result or "Introduction to Machine Learning" in result
         mock_vector_store.search.assert_called_once_with(
-            query="What is machine learning?",
-            course_name=None,
-            lesson_number=None
+            query="What is machine learning?", course_name=None, lesson_number=None
         )
 
     def test_execute_with_course_filter(self, mock_vector_store, sample_search_results):
@@ -46,9 +45,7 @@ class TestCourseSearchToolExecute:
 
         # Verify search was called with course filter
         mock_vector_store.search.assert_called_once_with(
-            query="What is ML?",
-            course_name="Machine Learning",
-            lesson_number=None
+            query="What is ML?", course_name="Machine Learning", lesson_number=None
         )
 
     def test_execute_with_lesson_filter(self, mock_vector_store, sample_search_results):
@@ -62,9 +59,7 @@ class TestCourseSearchToolExecute:
 
         # Verify search was called with lesson filter
         mock_vector_store.search.assert_called_once_with(
-            query="test",
-            course_name=None,
-            lesson_number=2
+            query="test", course_name=None, lesson_number=2
         )
 
     def test_execute_with_both_filters(self, mock_vector_store, sample_search_results):
@@ -74,17 +69,11 @@ class TestCourseSearchToolExecute:
         mock_vector_store.search.return_value = sample_search_results
 
         # Execute
-        result = tool.execute(
-            query="supervised learning",
-            course_name="ML Course",
-            lesson_number=2
-        )
+        result = tool.execute(query="supervised learning", course_name="ML Course", lesson_number=2)
 
         # Verify both filters passed
         mock_vector_store.search.assert_called_once_with(
-            query="supervised learning",
-            course_name="ML Course",
-            lesson_number=2
+            query="supervised learning", course_name="ML Course", lesson_number=2
         )
 
     def test_execute_with_empty_results(self, mock_empty_vector_store):
@@ -115,7 +104,9 @@ class TestCourseSearchToolExecute:
         """Test execute handles search errors"""
         # Setup
         tool = CourseSearchTool(mock_vector_store)
-        mock_vector_store.search.return_value = SearchResults.empty("Search error: Database connection failed")
+        mock_vector_store.search.return_value = SearchResults.empty(
+            "Search error: Database connection failed"
+        )
 
         # Execute
         result = tool.execute(query="test")
@@ -134,7 +125,7 @@ class TestCourseSearchToolExecute:
         result = tool.execute(query="test")
 
         # Verify sources tracked
-        assert hasattr(tool, 'last_sources')
+        assert hasattr(tool, "last_sources")
         assert len(tool.last_sources) == len(sample_search_results.documents)
 
     def test_format_results_includes_course_title(self, mock_vector_store, sample_search_results):
@@ -197,13 +188,15 @@ class TestCourseOutlineTool:
 
         # Mock course catalog response
         mock_vector_store.course_catalog.get.return_value = {
-            'ids': ['ML Course'],
-            'metadatas': [{
-                'title': 'ML Course',
-                'instructor': 'Dr. Smith',
-                'course_link': 'https://example.com/ml',
-                'lessons_json': '[{"lesson_number": 1, "lesson_title": "Intro"}]'
-            }]
+            "ids": ["ML Course"],
+            "metadatas": [
+                {
+                    "title": "ML Course",
+                    "instructor": "Dr. Smith",
+                    "course_link": "https://example.com/ml",
+                    "lessons_json": '[{"lesson_number": 1, "lesson_title": "Intro"}]',
+                }
+            ],
         }
         mock_vector_store._resolve_course_name.return_value = "ML Course"
 

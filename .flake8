@@ -1,0 +1,21 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503, E402, F401, F841, F541, E501, F811
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    chroma_db,
+    *.egg-info
+
+# E203: Whitespace before ':' (Black compatibility)
+# W503: Line break before binary operator (Black compatibility)
+# E402: Module level import not at top (common in test files)
+# F401: Unused imports (common in test fixtures)
+# F841: Unused variables (common in test assertions)
+# F541: f-string without placeholders
+# E501: Line too long (Black handles most cases, strings can exceed)
+# F811: Redefinition of unused imports (can be fixed incrementally)
